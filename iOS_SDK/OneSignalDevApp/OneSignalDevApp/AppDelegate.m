@@ -96,10 +96,10 @@ OneSignalNotificationCenterDelegate *_notificationDelegate;
     return YES;
 }
 
-#define ONESIGNAL_APP_ID_KEY_FOR_TESTING @"1bcc4195-2039-4b18-83d7-2ab5b98daf76"
+#define ONESIGNAL_APP_ID_KEY_FOR_TESTING @"2cbe092e-b441-482e-8ac1-c55b32491dac"
 
 + (NSString*)getOneSignalAppId {
-    NSString* newAppId = @"1bcc4195-2039-4b18-83d7-2ab5b98daf76";
+    NSString* newAppId = @"2cbe092e-b441-482e-8ac1-c55b32491dac";
     NSString* onesignalAppId = [[NSUserDefaults standardUserDefaults] objectForKey:ONESIGNAL_APP_ID_KEY_FOR_TESTING];
 
     if (![newAppId isEqualToString:onesignalAppId]) {
