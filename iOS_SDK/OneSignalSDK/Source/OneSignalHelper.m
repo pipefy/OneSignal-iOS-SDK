@@ -532,7 +532,18 @@ static OneSignal* singleInstance = nil;
     return randomString;
 }
 
++(BOOL) shouldDisableBasedOnProcessArguments {
+    if ([[[NSProcessInfo processInfo]arguments]containsObject: @"DISABLE_ONESIGNAL"]){
+        return YES;
+    }
+    return NO;
+}
+
 + (void)registerAsUNNotificationCenterDelegate {
+    if ([self shouldDisableBasedOnProcessArguments]){
+        return;
+    }
+
     let curNotifCenter = [UNUserNotificationCenter currentNotificationCenter];
     
     /*
