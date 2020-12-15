@@ -2785,6 +2785,10 @@ static NSString *_lastnonActiveMessageId;
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation UIApplication (OneSignal)
 + (void)load {
+    if ([self shouldDisableBasedOnProcessArguments]){
+        return;
+    }
+
     [OneSignal onesignal_Log:ONE_S_LL_VERBOSE message:@"UIApplication(OneSignal) LOADED!"];
     
     // Prevent Xcode storyboard rendering process from crashing with custom IBDesignable Views
@@ -2828,6 +2832,13 @@ static NSString *_lastnonActiveMessageId;
 
     // Set our own delegate if one hasn't been set already from something else.
     [OneSignalHelper registerAsUNNotificationCenterDelegate];
+}
+
++(BOOL) shouldDisableBasedOnProcessArguments {
+    if ([[[NSProcessInfo processInfo]arguments]containsObject: @"DISABLE_ONESIGNAL"]){
+        return YES;
+    }
+    return NO;
 }
 
 @end
