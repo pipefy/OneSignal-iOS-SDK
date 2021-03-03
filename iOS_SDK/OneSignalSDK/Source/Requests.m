@@ -379,9 +379,11 @@ NSString * const NOTIFICATION_IDS = @"notification_ids";
     params[@"net_type"] = netType;
     params[@"device_type"] = deviceType;
     
-    for (OSFocusInfluenceParam *influenceParam in influenceParams) {
-        params[influenceParam.influenceKey] = influenceParam.influenceIds;
-        params[influenceParam.influenceDirectKey] = @(influenceParam.directInfluence);
+    if (influenceParams) {
+        for (OSFocusInfluenceParam *influenceParam in influenceParams) {
+            params[influenceParam.influenceKey] = influenceParam.influenceIds;
+            params[influenceParam.influenceDirectKey] = @(influenceParam.directInfluence);
+        }
     }
 
     if (emailAuthHash && emailAuthHash.length > 0)
@@ -415,6 +417,29 @@ NSString * const NOTIFICATION_IDS = @"notification_ids";
 
     request.method = POST;
     request.path = [NSString stringWithFormat:@"in_app_messages/%@/impression", messageId];
+
+    return request;
+}
+@end
+
+@implementation OSRequestInAppMessagePageViewed
++ (instancetype _Nonnull)withAppId:(NSString * _Nonnull)appId
+                      withPlayerId:(NSString * _Nonnull)playerId
+                     withMessageId:(NSString * _Nonnull)messageId
+                        withPageId:(NSString * _Nonnull)pageId
+                      forVariantId:(NSString *)variantId {
+    let request = [OSRequestInAppMessagePageViewed new];
+
+    request.parameters = @{
+       @"device_type": @0,
+       @"player_id": playerId,
+       @"app_id": appId,
+       @"variant_id": variantId,
+       @"page_id": pageId
+    };
+
+    request.method = POST;
+    request.path = [NSString stringWithFormat:@"in_app_messages/%@/pageImpression", messageId];
 
     return request;
 }

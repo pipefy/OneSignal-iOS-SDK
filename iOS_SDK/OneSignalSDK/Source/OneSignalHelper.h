@@ -29,6 +29,7 @@
 #import "OneSignalInternal.h"
 #import "OneSignalWebView.h"
 #import "UIApplication+OneSignal.h"
+#import "NSDateFormatter+OneSignal.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -59,6 +60,7 @@
 + (UILocalNotification*)prepareUILocalNotification:(OSNotification*)notification;
 + (BOOL)verifyURL:(NSString*)urlString;
 + (BOOL)isRemoteSilentNotification:(NSDictionary*)msg;
++ (BOOL)isDisplayableNotification:(NSDictionary*)msg;
 + (void)addAttachments:(OSNotification*)notification toNotificationContent:(UNMutableNotificationContent*)content;
 + (void)addActionButtons:(OSNotification*)notification toNotificationContent:(UNMutableNotificationContent*)content;
 + (BOOL)isOneSignalPayload:(NSDictionary *)payload;

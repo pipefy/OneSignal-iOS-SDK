@@ -107,20 +107,16 @@ NS_ASSUME_NONNULL_END
                             netType:(NSNumber * _Nonnull)netType
                      emailAuthToken:(NSString * _Nullable)emailAuthHash
                 externalIdAuthToken:(NSString * _Nullable)externalIdAuthToken
-                         deviceType:(NSNumber * _Nonnull)deviceType;
-
-+ (instancetype _Nonnull)withUserId:(NSString * _Nonnull)userId
-                              appId:(NSString * _Nonnull)appId
-                         activeTime:(NSNumber * _Nonnull)activeTime
-                            netType:(NSNumber * _Nonnull)netType
-                     emailAuthToken:(NSString * _Nullable)emailAuthHash
-                externalIdAuthToken:(NSString * _Nullable)externalIdAuthToken
                          deviceType:(NSNumber * _Nonnull)deviceType
                     influenceParams:(NSArray<OSFocusInfluenceParam *> * _Nonnull)influenceParams;
 @end
 
 @interface OSRequestInAppMessageViewed : OneSignalRequest
 + (instancetype _Nonnull)withAppId:(NSString * _Nonnull)appId withPlayerId:(NSString * _Nonnull)playerId withMessageId:(NSString * _Nonnull)messageId forVariantId:(NSString * _Nonnull)variantId;
+@end
+
+@interface OSRequestInAppMessagePageViewed : OneSignalRequest
++ (instancetype _Nonnull)withAppId:(NSString * _Nonnull)appId withPlayerId:(NSString * _Nonnull)playerId withMessageId:(NSString * _Nonnull)messageId withPageId:(NSString * _Nonnull)pageId forVariantId:(NSString * _Nonnull)variantId;
 @end
 
 @interface OSRequestInAppMessageClicked : OneSignalRequest

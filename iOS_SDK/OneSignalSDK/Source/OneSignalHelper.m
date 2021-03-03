@@ -282,6 +282,13 @@ OneSignalWebView *webVC;
     return true;
 }
 
++ (BOOL)isDisplayableNotification:(NSDictionary*)msg {
+    if ([self isRemoteSilentNotification:msg]) {
+        return false;
+    }
+    return msg[@"aps"][@"alert"] != nil;
+}
+
 + (void)lastMessageReceived:(NSDictionary*)message {
     lastMessageReceived = message;
 }
@@ -402,7 +409,7 @@ OneSignalWebView *webVC;
     return NO;
 }
 
-+ (NSNumber*)getNetType {
++ (NSNumber *)getNetType {
     OneSignalReachability* reachability = [OneSignalReachability reachabilityForInternetConnection];
     NetworkStatus status = [reachability currentReachabilityStatus];
     if (status == ReachableViaWiFi)

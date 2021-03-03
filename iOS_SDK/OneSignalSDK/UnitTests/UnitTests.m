@@ -71,6 +71,8 @@
 #import "OneSignalLocation.h"
 #import "OneSignalLocationOverrider.h"
 #import "UIDeviceOverrider.h"
+#import "OneSignalOverrider.h"
+#import "NSTimeZoneOverrider.h"
 
 // Dummies
 #import "DummyNotificationCenterDelegate.h"
@@ -106,6 +108,7 @@
 - (void)setUp {
     [super setUp];
     [UnitTestCommonMethods beforeEachTest:self];
+    OneSignalOverrider.shouldOverrideLaunchURL = false;
 
     // Only enable remote-notifications in UIBackgroundModes
     NSBundleOverrider.nsbundleDictionary = @{@"UIBackgroundModes": @[@"remote-notification"]};
@@ -595,12 +598,14 @@
     
     XCTAssertEqual(observer->last.from.isSubscribed, false);
     XCTAssertEqual(observer->last.to.isSubscribed, true);
+    XCTAssertEqual(observer->fireCount, 1);
     
     [OneSignal disablePush:true];
     [UnitTestCommonMethods runBackgroundThreads];
     
     XCTAssertEqual(observer->last.from.isSubscribed, true);
     XCTAssertEqual(observer->last.to.isSubscribed, false);
+    XCTAssertEqual(observer->fireCount, 2);
 }
 
 - (void)testSubscriptionChangeObserverWhenPromptNotShown {
@@ -614,14 +619,14 @@
     [UnitTestCommonMethods runBackgroundThreads];
     [NSObjectOverrider runPendingSelectors];
     [UnitTestCommonMethods runBackgroundThreads];
-    
+    XCTAssertEqual(observer->fireCount, 1);
     XCTAssertNil(observer->last.from.userId);
     XCTAssertEqualObjects(observer->last.to.userId, @"1234");
     XCTAssertFalse(observer->last.to.isSubscribed);
     
     [OneSignal disablePush:true];
     [UnitTestCommonMethods runBackgroundThreads];
-    
+    XCTAssertEqual(observer->fireCount, 2);
     XCTAssertFalse(observer->last.from.isPushDisabled);
     XCTAssertTrue(observer->last.to.isPushDisabled);
     // Device registered with OneSignal so now make pushToken available.
@@ -642,6 +647,7 @@
     // Device should be reported a subscribed now as all conditions are true.
     [OneSignal disablePush:false];
     [UnitTestCommonMethods runBackgroundThreads];
+    XCTAssertEqual(observer->fireCount, 4);
     XCTAssertFalse(observer->last.from.isSubscribed);
     XCTAssertTrue(observer->last.to.isSubscribed);
 }
@@ -708,6 +714,35 @@
     
     XCTAssertEqualObjects(OneSignalClientOverrider.lastHTTPRequest[@"app_id"], @"b2f7f966-d8cc-11e4-bed1-df8f05be55ba");
     XCTAssertEqualObjects(OneSignalClientOverrider.lastHTTPRequest[@"notification_types"], @-19);
+}
+
+// This test covers migrating to OneSignal with the following senario;
+// 1. App was released publicly to the AppStore with push on with another provider.
+// 2. User imports all existing push tokens into OneSignal.
+// 3. OneSignal is added to their app.
+// 4. Ensure that identifier is always send with the player create, to prevent duplicated players
+- (void)testNotificationPermissionsAcceptedBeforeAddingOneSiganl_waitsForAPNSTokenBeforePlayerCreate {
+    // 1. Set that notification permissions are already enabled.
+    UNUserNotificationCenterOverrider.notifTypesOverride = 7;
+    UNUserNotificationCenterOverrider.authorizationStatus = [NSNumber numberWithInteger:UNAuthorizationStatusAuthorized];
+
+    // 2. Setup delay of APNs reaponse
+    [UIApplicationOverrider setBlockApnsResponse:true];
+
+    // 3. Init OneSignal
+    [UnitTestCommonMethods initOneSignal_andThreadWait];
+    [NSObjectOverrider runPendingSelectors];
+
+    // 4. Don't make a network call right away
+    XCTAssertNil(OneSignalClientOverrider.lastHTTPRequest);
+
+    // 5. Simulate APNs now giving us a push token
+    [UIApplicationOverrider setBlockApnsResponse:false];
+    [UnitTestCommonMethods runBackgroundThreads];
+
+    // 6. Ensure we registered with push token and it has the correct notification_types
+    XCTAssertEqualObjects(OneSignalClientOverrider.lastHTTPRequest[@"notification_types"], @15);
+    XCTAssertEqualObjects(OneSignalClientOverrider.lastHTTPRequest[@"identifier"], @"0000000000000000000000000000000000000000000000000000000000000000");
 }
 
 - (void)testNotificationTypesWhenAlreadyAcceptedWithAutoPromptOffOnFristStartPreIos10 {
@@ -1547,10 +1582,14 @@ didReceiveRemoteNotification:userInfo
     __block BOOL receivedWasFire = false;
     [UnitTestCommonMethods initOneSignalWithHandlers:^(OSNotification *notif, OSNotificationDisplayResponse completion) {
         receivedWasFire = true;
-    } notificationOpenedHandler:nil];
+    } notificationOpenedHandler:^(OSNotificationOpenedResult * _Nonnull result) {
+        receivedWasFire = true;
+    }];
     [UnitTestCommonMethods runBackgroundThreads];
     
-    id userInfo = @{@"aps": @{@"content_available": @1},
+    id userInfo = @{@"aps": @{@"content_available": @1,
+                              @"badge" : @54
+                    },
                     @"custom": @{
                             @"i": @"b2f7f966-d8cc-11e4-1111-df8f05be55bb"
                             }
@@ -1561,6 +1600,32 @@ didReceiveRemoteNotification:userInfo
     
     XCTAssertEqual(receivedWasFire, false);
     XCTAssertEqual(OneSignalClientOverrider.networkRequestCount, 1);
+}
+
+// Tests that a slient content-available 1 notification doesn't trigger an on_session or count it has opened.
+- (void)testContentAvailableDoesNotTriggerOpenWhenInForeground  {
+    UIApplicationOverrider.currentUIApplicationState = UIApplicationStateActive;
+    
+    __block BOOL receivedWasFire = false;
+    [UnitTestCommonMethods initOneSignalWithHandlers:^(OSNotification *notif, OSNotificationDisplayResponse completion) {
+        receivedWasFire = true;
+    } notificationOpenedHandler:^(OSNotificationOpenedResult * _Nonnull result) {
+        receivedWasFire = true;
+    }];
+    [UnitTestCommonMethods runBackgroundThreads];
+    
+    id userInfo = @{@"aps": @{@"content_available": @1,
+                              @"badge" : @54
+                            },
+                    @"custom": @{
+                            @"i": @"b2f7f966-d8cc-11e4-1111-df8f05be55bb"
+                            }
+                    };
+    
+    [self fireDidReceiveRemoteNotification:userInfo];
+    [UnitTestCommonMethods runBackgroundThreads];
+    
+    XCTAssertEqual(receivedWasFire, false);
 }
 
 - (UNNotificationCategory*)unNotificagionCategoryWithId:(NSString*)identifier {
@@ -1838,6 +1903,7 @@ didReceiveRemoteNotification:userInfo
     [OneSignal setAppId:@"b2f7f966-d8cc-11e4-bed1-df8f05be55ba"];
     [OneSignal initWithLaunchOptions:nil];
     
+    // Subscription observer won't be trigger since it needs for register user to fire, register user won't fire due to privacy consent needed
     OSSubscriptionStateTestObserver* observer = [OSSubscriptionStateTestObserver new];
     [OneSignal addSubscriptionObserver:observer];
     
@@ -1846,17 +1912,16 @@ didReceiveRemoteNotification:userInfo
     [NSObjectOverrider runPendingSelectors];
     [UnitTestCommonMethods runBackgroundThreads];
     
-    XCTAssertNil(observer->last.from.userId);
-    XCTAssertNil(observer->last.to.userId);
-    XCTAssertFalse(observer->last.to.isSubscribed);
+    // Chack that observer data is nil
+    XCTAssertNil(observer->last);
+    XCTAssertEqual(0, observer->fireCount);
     
     [OneSignal disablePush:true]; //This should not result in a a change in state because we are waiting on privacy
     [UnitTestCommonMethods runBackgroundThreads];
     
-    XCTAssertTrue(observer->last.from.isPushDisabled); //Initial from is that push is disabled
-    XCTAssertFalse(observer->last.to.isPushDisabled); //Default value after adding an observer is that push is not disabled
-    // Device registered with OneSignal so now make pushToken available.
-    XCTAssertNil(observer->last.to.pushToken);
+    // Chack that observer data is still nil
+    XCTAssertNil(observer->last);
+    XCTAssertEqual(0, observer->fireCount);
     
     [NSBundleOverrider setPrivacyState:false];
 }
@@ -2714,7 +2779,6 @@ didReceiveRemoteNotification:userInfo
 - (void)testRemoveExternalUserId_forPushAndEmail_withAuthHash {
     // 1. Init OneSignal
     [UnitTestCommonMethods initOneSignal_andThreadWait];
-    
     // 2. Set email
     [OneSignal setEmail:TEST_EMAIL withEmailAuthHashToken:TEST_EMAIL_HASH_TOKEN];
     [UnitTestCommonMethods runBackgroundThreads];
@@ -2960,4 +3024,43 @@ didReceiveRemoteNotification:userInfo
     XCTAssertEqualObjects(json[@"templateName"], @"Template name");
 }
 
+- (void)testLaunchURL {
+        
+    // 1. Init OneSignal with app start
+    [UnitTestCommonMethods initOneSignal];
+    [UnitTestCommonMethods runBackgroundThreads];
+
+    // 2. Simulate a notification being opened
+    let notifResponse = [self createBasiciOSNotificationResponse];
+    let notifCenter = UNUserNotificationCenter.currentNotificationCenter;
+    let notifCenterDelegate = notifCenter.delegate;
+    [notifCenterDelegate userNotificationCenter:notifCenter didReceiveNotificationResponse:notifResponse withCompletionHandler:^() {}];
+
+    // 3. Setup OneSignal.setNotificationOpenedHandler
+    __block BOOL openedWasFire = false;
+    [OneSignal setNotificationOpenedHandler:^(OSNotificationOpenedResult * _Nonnull result) {
+        openedWasFire = true;
+    }];
+    // 4. Wait for open event to fire
+    [UnitTestCommonMethods runBackgroundThreads];
+
+    // 5. Ensure the OneSignal public callback fired
+    XCTAssertTrue(openedWasFire);
+    
+    // 6. Ensure the launch URL was not opened
+    XCTAssertFalse(OneSignalOverrider.launchWebURLWasCalled);
+}
+
+- (void)testTimezoneId {
+       
+    let mockTimezone = [NSTimeZone timeZoneWithName:@"Europe/London"];
+    [NSTimeZoneOverrider setLocalTimeZone:mockTimezone];
+    
+    [UnitTestCommonMethods initOneSignal_andThreadWait];
+    
+    NSLog(@"CHECKING LAST HTTP REQUEST");
+    
+    XCTAssertEqualObjects(OneSignalClientOverrider.lastHTTPRequest[@"timezone_id"], mockTimezone.name);
+    
+}
 @end

@@ -69,11 +69,10 @@ SEL changeSelector;
     
     @synchronized(observers) {
         NSArray *obs = [observers copy];
-        
         for (id observer in obs) {
             fired = true;
             if (changeSelector) {
-                // Any Obserable setup to fire a custom selector with changeSelector
+                // Any Observable setup to fire a custom selector with changeSelector
                 //  is external to our SDK. Run on the main thread in case the
                 //  app developer needs to update UI elements.
                 
